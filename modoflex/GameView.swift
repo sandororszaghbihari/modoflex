@@ -64,7 +64,8 @@ struct GameView: View {
 
     @State private var lives = 3
     @State private var lastFailedPair: WordPair? = nil
-
+    @State private var pulse = false
+    
     let wordPairs: [WordPair] = loadWordPairs()
     let movementTimer = Timer.publish(every: 1 / 60, on: .main, in: .common).autoconnect()
 
@@ -135,14 +136,32 @@ struct GameView: View {
                             }
 
                             if wordCompleted {
-                                Button("Új szó") {
+                                Button(action: {
                                     loadNewPair(in: geometry.size)
+                                }) {
+                                    Image(systemName: "arrow.clockwise")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .padding(20)
+                                        .frame(width: 60, height: 60)
+                                        .background(Circle().fill(Color.green))
+                                        .foregroundColor(.white)
+                                        .shadow(radius: 5)
+                                        .scaleEffect(pulse ? 1.5 : 1.0)
+                                        .animation(
+                                            .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                                            value: pulse
+                                        )
                                 }
-                                .font(.title)
-                                .padding()
-                                .background(Color.green)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
+                                .padding(.top,30)
+                                .onAppear {
+                                    if wordCompleted {
+                                        pulse = true
+                                    }
+                                }
+                                .onChange(of: wordCompleted) { completed in
+                                    pulse = completed
+                                }
                             } else {
                                 ZStack {
                                     ForEach(characters) { char in
@@ -319,7 +338,7 @@ struct GameView: View {
     }
 
     func updateCharacterPositions(in size: CGSize) {
-        let bounds = CGRect(x: 30, y: 120, width: size.width - 60, height: size.height - 250)
+        let bounds = CGRect(x: 30, y: 120, width: size.width - 60, height: size.height - 290)
         for i in characters.indices {
             var char = characters[i]
             var newX = char.position.x + char.velocity.dx

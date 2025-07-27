@@ -1,1 +1,1 @@
-teszt
+gpg teszt

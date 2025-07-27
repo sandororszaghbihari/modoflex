@@ -11,7 +11,7 @@ import SwiftUI
 struct modoflexApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            GameView()
         }
     }
 }
