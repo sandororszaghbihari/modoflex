@@ -1,39 +1,11 @@
+///  GameView.swift
+//  ModoFlex
 //
-//  WordPair.swift
-//  modoflex
+//  Created by Mo-Do on 2025. 07. 27.
 //
-//  Created by Orszagh Bihari Sandor  on 2025. 07. 27..
-//
-
 
 import SwiftUI
 import AVFoundation
-
-struct WordPair {
-    let hungarian: String
-    let spanish: String
-}
-
-func loadWordPairs() -> [WordPair] {
-    guard let url = Bundle.main.url(forResource: "data", withExtension: "txt") else {
-        print("❌ Nem található a data.txt fájl")
-        return []
-    }
-
-    do {
-        let content = try String(contentsOf: url)
-        let lines = content.components(separatedBy: .newlines)
-
-        return lines.compactMap { line in
-            let parts = line.components(separatedBy: ";")
-            guard parts.count == 2 else { return nil }
-            return WordPair(hungarian: parts[0], spanish: parts[1])
-        }
-    } catch {
-        print("❌ Hiba a fájl beolvasásakor: \(error)")
-        return []
-    }
-}
 
 struct CharacterCircle: Identifiable {
     let id = UUID()
@@ -45,6 +17,7 @@ struct CharacterCircle: Identifiable {
 }
 
 struct GameView: View {
+    var wordPairs: [WordPair]
     @State private var currentPair: WordPair? = nil
     @State private var currentIndex = 0
     @State private var characters: [CharacterCircle] = []
@@ -65,8 +38,9 @@ struct GameView: View {
     @State private var lives = 3
     @State private var lastFailedPair: WordPair? = nil
     @State private var pulse = false
+    @StateObject private var dataLoader = DataLoader()
+    @State private var showAnswerHint = false
     
-    let wordPairs: [WordPair] = loadWordPairs()
     let movementTimer = Timer.publish(every: 1 / 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -118,16 +92,51 @@ struct GameView: View {
                                     }
                                 }.padding(.horizontal)
                             }
+                            
+                            
+                            HStack(spacing: 10) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.yellow.opacity(0.2))
+                                        .frame(height: 40)
+                                    Text(typedSpanish)
+                                        .foregroundColor(.yellow)
+                                        .font(.headline)
+                                }
 
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.yellow.opacity(0.2))
-                                    .frame(height: 50)
-                                Text(typedSpanish)
-                                    .foregroundColor(.yellow)
-                                    .font(.title2)
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        showAnswerHint = true
+                                    }
+                                    
+                                    // 3 másodperc múlva automatikusan eltűnik
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            showAnswerHint = false
+                                        }
+                                    }
+                                }) {
+                                    Text("?")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .frame(width: 40, height: 40)
+                                        .background(Circle().fill(Color.orange))
+                                        .shadow(radius: 3)
+                                }
                             }
 
+                            if showAnswerHint, let pair = currentPair {
+                                Label(pair.spanish, systemImage: "lightbulb.fill")
+                                    .font(.footnote) // Kicsi, de olvashatóbb
+                                    .foregroundColor(.yellow)
+                                    .padding(.vertical, 2) // kis margó felül és alul
+                                    .padding(.horizontal, 6) // kis margó oldalt is
+                                    .background(Color.black.opacity(0.1))
+                                    .cornerRadius(8)
+                                    .padding(.trailing, 8) // távolság a jobb szélétől
+                                
+                                    .animation(.easeInOut(duration: 0.2), value: showAnswerHint)
+                            }
                             HStack(spacing: 8) {
                                 ForEach(0..<3, id: \.self) { index in
                                     Image(systemName: index < lives ? "heart.fill" : "heart")
@@ -135,6 +144,22 @@ struct GameView: View {
                                 }
                             }
 
+                            //MARK: Help szöveg megjelenítő
+                            if showAnswerHint && false {
+                                HStack {
+                                    Spacer()
+                                    Label("Tipp", systemImage: "lightbulb.fill")
+                                        .font(.caption2) // nagyon kicsi betűméret
+                                        .foregroundColor(.yellow)
+                                        .padding(.vertical, 2) // kis margó felül és alul
+                                        .padding(.horizontal, 6) // kis margó oldalt is
+                                        .background(Color.black.opacity(0.1))
+                                        .cornerRadius(8)
+                                        .padding(.trailing, 8) // távolság a jobb szélétől
+                                    Spacer()
+                                }
+                            }
+                            
                             if wordCompleted {
                                 Button(action: {
                                     loadNewPair(in: geometry.size)
@@ -154,14 +179,8 @@ struct GameView: View {
                                         )
                                 }
                                 .padding(.top,30)
-                                .onAppear {
-                                    if wordCompleted {
-                                        pulse = true
-                                    }
-                                }
-                                .onChange(of: wordCompleted) { completed in
-                                    pulse = completed
-                                }
+                                .onAppear { pulse = true }
+                                .onChange(of: wordCompleted) { _, newValue in pulse = newValue }
                             } else {
                                 ZStack {
                                     ForEach(characters) { char in
@@ -175,12 +194,13 @@ struct GameView: View {
                                         }
                                         .scaleEffect(char.isFadingOut ? 0.1 : 1.0)
                                         .opacity(char.isFadingOut ? 0.0 : 1.0)
-                                        .animation(.easeInOut(duration: 0.3), value: char.isFadingOut)
-                                        .contentShape(Circle())
                                         .position(char.position)
-                                        .onTapGesture {
-                                            tapAnimated(char: char.char, id: char.id)
-                                        }
+                                        .animation(.easeInOut(duration: 0.3), value: char.isFadingOut)
+                                    }
+
+                                    TouchCaptureView { location in
+                                        print("📍 Precíz Tap Location: \(location)")
+                                        handleTap(at: location)
                                     }
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -189,21 +209,51 @@ struct GameView: View {
                                 }
                             }
                         }
+                    } else {
+                        VStack(spacing: 20) {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            Text("Játék betöltése...")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            Text("Szavak száma: \(wordPairs.count)")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
                     }
 
                     Spacer()
                 }
+                .animation(.easeInOut, value: showAnswerHint)
             }
             .onAppear {
-                loadNewPair(in: geometry.size)
-                totalTime = 0
-                startTotalTimer()
+                if wordPairs.isEmpty {
+                    print("⚠️ wordPairs üres!")
+                } else {
+                    loadNewPair(in: geometry.size)
+                }
             }
+        }
+        
+    }
+
+    func handleTap(at point: CGPoint) {
+        print("👆 Tap location: \(point)")
+
+        if let tappedChar = characters.min(by: { distance($0.position, point) < distance($1.position, point) }),
+           distance(tappedChar.position, point) <= tappedChar.size / 2 {
+            print("✅ Tapped character: \(tappedChar.char)")
+            tapAnimated(char: tappedChar.char, id: tappedChar.id)
+        } else {
+            print("❌ Nem talált karakter a tappolásnál.")
+            triggerErrorFeedback()
         }
     }
 
     func tapAnimated(char: String, id: UUID) {
         guard let pair = currentPair else { return }
+        guard currentIndex < pair.spanish.count else { return }
         let expected = String(pair.spanish[pair.spanish.index(pair.spanish.startIndex, offsetBy: currentIndex)])
 
         if char == expected {
@@ -222,10 +272,8 @@ struct GameView: View {
 
             if currentIndex >= pair.spanish.count {
                 wordCompleted = true
-                if typedSpanish.count == pair.spanish.count {
-                    streak += 1
-                    score += 5
-                }
+                streak += 1
+                score += 5
                 if score > highScore {
                     highScore = score
                     UserDefaults.standard.set(highScore, forKey: "highScore")
@@ -296,49 +344,27 @@ struct GameView: View {
         }
     }
 
-    func startTotalTimer() {
-        totalTimer?.invalidate()
-        totalTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            totalTime += 1
-        }
-    }
-
     func generateCharacters(for word: String, in size: CGSize) -> [CharacterCircle] {
         var result: [CharacterCircle] = []
-        var usedRects: [CGRect] = []
+        guard !word.isEmpty else { return result }
+
         let paddingX: CGFloat = 60
         let paddingYTop: CGFloat = 200
         let paddingYBottom: CGFloat = 250
-        let buffer: CGFloat = 10
 
-        for char in word.map({ String($0) }) {
-            var newPosition: CGPoint
-            var rect: CGRect
-            var attempt = 0
-            var circleSize: CGFloat = 50
-            repeat {
-                circleSize = CGFloat.random(in: 48...64)
-                let x = CGFloat.random(in: paddingX...(size.width - paddingX))
-                let y = CGFloat.random(in: paddingYTop...(size.height - paddingYBottom))
-                newPosition = CGPoint(x: x, y: y)
-                rect = CGRect(x: x - circleSize/2 - buffer / 2, y: y - circleSize/2 - buffer / 2, width: circleSize + buffer, height: circleSize + buffer)
-                attempt += 1
-                if attempt > 100 { break }
-            } while usedRects.contains(where: { $0.intersects(rect) })
-
-            if attempt <= 100 {
-                usedRects.append(rect)
-                let velocity = CGVector(dx: Double.random(in: -1.2...1.2), dy: Double.random(in: -1.2...1.2))
-                result.append(CharacterCircle(char: char, position: newPosition, size: circleSize, velocity: velocity))
-            } else {
-                print("⚠️ Elhelyezés sikertelen: \(char)")
-            }
+        for (_, char) in word.map({ String($0) }).enumerated() {
+            let circleSize = CGFloat.random(in: 48...64)
+            let x = CGFloat.random(in: paddingX...(size.width - paddingX))
+            let y = CGFloat.random(in: paddingYTop...(size.height - paddingYBottom))
+            let position = CGPoint(x: x, y: y)
+            let velocity = CGVector(dx: Double.random(in: -1.2...1.2), dy: Double.random(in: -1.2...1.2))
+            result.append(CharacterCircle(char: char, position: position, size: circleSize, velocity: velocity))
         }
         return result
     }
 
     func updateCharacterPositions(in size: CGSize) {
-        let bounds = CGRect(x: 30, y: 120, width: size.width - 60, height: size.height - 290)
+        let bounds = CGRect(x: 30, y: 60, width: size.width - 60, height: size.height - 220)
         for i in characters.indices {
             var char = characters[i]
             var newX = char.position.x + char.velocity.dx
@@ -377,11 +403,34 @@ struct GameView: View {
                 }
             }
         }
+        // ✅ Ütközés után is korrigáljuk a boundary-n túli pozíciókat
+        for i in characters.indices {
+            var char = characters[i]
+            let halfSize = char.size / 2
+
+            if char.position.x - halfSize < bounds.minX {
+                char.position.x = bounds.minX + halfSize
+                char.velocity.dx *= -1
+            } else if char.position.x + halfSize > bounds.maxX {
+                char.position.x = bounds.maxX - halfSize
+                char.velocity.dx *= -1
+            }
+
+            if char.position.y - halfSize < bounds.minY {
+                char.position.y = bounds.minY + halfSize
+                char.velocity.dy *= -1
+            } else if char.position.y + halfSize > bounds.maxY {
+                char.position.y = bounds.maxY - halfSize
+                char.velocity.dy *= -1
+            }
+
+            characters[i] = char
+        }
+    }
+
+    func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2))
     }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        GameView()
-    }
-}
+
