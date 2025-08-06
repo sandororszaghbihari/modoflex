@@ -1,7 +1,1 @@
-data.txt
-alap.txt
-haladó.txt
-szavak.txt
-gyakorlás.txt
-közép.txt
-nehez.txt 
+colors.txt
