@@ -1,1 +1,6 @@
-
+fekete;negro
+feher;blanco
+piros;rojo
+zold;verde
+kek;azul
+sarga;amarillo
