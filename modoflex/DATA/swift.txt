@@ -1,1 +1,7 @@
-swift 
+Collection types;Array, Set, Dictionary
+Elojel nelkul Int minimuma;let minValue = UInt.min
+prefixek a valtozoban;binary:0b octal:0o hexa: 0x
+szamelvalasztok;1_000_000
+Int conversion;Int("8")
+type alias;typealias AudioSample = UInt16
+tuple pelda;http404Error = (404,"Not Found")
