@@ -1,2 +1,2 @@
 colors.txt
-swift.txt
+simpler.txt
